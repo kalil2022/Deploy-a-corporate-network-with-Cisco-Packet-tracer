@@ -6,6 +6,9 @@ telephony, a wireless BYOD segment, and a branch site reached over a
 serial WAN link, with connectivity verified end-to-end via `ping` and
 `tracert`.
 
+> 📋 **New here?** See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for a
+> stage-by-stage walkthrough of how this network was built, with diagrams.
+
 ## Topology
 
 - **Core / distribution:** `Multilayer Switch0` (Cisco Catalyst 3650-24PS,
@@ -28,13 +31,50 @@ serial WAN link, with connectivity verified end-to-end via `ping` and
 - **IP telephony:** Cisco 7960 IP phones in the Executive and Sales zones,
   on a dedicated Telephony VLAN (50).
 
-See `docs/screenshots/01`, `06`, `07` for the topology at earlier build
-stages, and `docs/screenshots/30-full-topology-with-vpn.png` for the
-current state including the VPN branch and IP phones.
+Topology at three build stages — original department network, with
+subnets/wireless added, and the current state with the VPN branch and IP
+phones:
+
+![Logical topology — original department network](docs/screenshots/01-logical-topology.png)
+*Original build: six department VLANs off four access switches, all trunked to the core.*
+
+![Topology with subnets and wireless labeled](docs/screenshots/06-topology-with-subnets.png)
+*Subnets labeled per zone, plus the wireless devices (laptop, TV, tablet, smartphone, webcam) added.*
+
+![Topology with dedicated Wifi zone](docs/screenshots/07-topology-with-wifi-zone.png)
+*Wireless devices grouped into their own zone (192.168.60.0/24) off Access Point0.*
+
+![Full topology including VPN branch and IP phones](docs/screenshots/30-full-topology-with-vpn.png)
+*Current state: IP phones added to Executive/Sales, and a new VPN branch (top) reached via TB-Router ↔ VPN-Router over a serial WAN link.*
+
+## Wireless configuration
+
+- **Access Point0**, Port 1: SSID `Agency`, channel 6, WPA2-PSK (AES),
+  passphrase `Cisco123`, coverage range 140 m.
+- **Laptop0** associates over `Wireless0` with a static IP
+  `192.168.60.1/24`, gateway `192.168.60.254` — the first attempt had no
+  gateway set, which was corrected.
+
+![Access Point0 config — SSID, WPA2-PSK, AES](docs/screenshots/08-access-point-config.png)
+
+| Laptop0 wireless IP config | |
+|---|---|
+| Before (no gateway set) | ![Laptop0 wireless config, before](docs/screenshots/09-laptop0-wireless-config-before.png) |
+| After (gateway corrected) | ![Laptop0 wireless config, after](docs/screenshots/10-laptop0-wireless-config-after.png) |
+
+Sample static IP configs from the initial build (Executive zone):
+
+| Device | IP config |
+|--------|--------------|
+| PC1-Exec | ![PC1-Exec IP config](docs/screenshots/02-pc1-exec-ip-config.png) |
+| AD-server | ![AD-server IP config](docs/screenshots/03-ad-server-ip-config.png) |
+| Prn-Exec (printer) | ![Prn-Exec IP config](docs/screenshots/04-prn-exec-ip-config.png) |
 
 ## VLANs / subnets
 
-Per the official addressing plan (`docs/screenshots/35-vlan-addressing-plan-full.png`):
+Per the official addressing plan:
+
+![Full VLAN addressing plan with usable ranges](docs/screenshots/35-vlan-addressing-plan-full.png)
 
 | VLAN | Name / department | Network address     | Usable range                    | Gateway            |
 |------|--------------------|-----------------------|------------------------------------|----------------------|
@@ -60,12 +100,13 @@ scheme documented below.
 **Per-switch VLAN database (confirmed for Exec-Sales):** Exec-Sales only
 needs 5 of the 12 VLANs locally — 20 (Executive), 21 (Sales), 40
 (Printing), 50 (Telephony), 100 (Administration) — matching the devices it
-actually serves. Confirmed live via CLI
-(`docs/screenshots/36-exec-sales-vlan-name-table.png`,
-`docs/screenshots/37-exec-sales-vlan-creation-cli.png`); see
-[`configs/exec-sales.cfg`](configs/exec-sales.cfg). The other access
-switches presumably follow the same "only create the VLANs you need"
-pattern, but that wasn't captured for them.
+actually serves. See [`configs/exec-sales.cfg`](configs/exec-sales.cfg).
+The other access switches presumably follow the same "only create the
+VLANs you need" pattern, but that wasn't captured for them.
+
+![Exec-Sales required VLANs](docs/screenshots/36-exec-sales-vlan-name-table.png)
+
+![Exec-Sales VLAN database creation, live CLI](docs/screenshots/37-exec-sales-vlan-creation-cli.png)
 
 ## Switch management addressing (VLAN 100)
 
@@ -80,8 +121,20 @@ Dedicated Layer 3 addresses for in-band switch administration:
 | IT                             | 192.168.100.5/24 | 2001:db8:acad:100::5/64   |
 | Network gateway                | 192.168.100.254  | 2001:db8:acad:100::254/64 |
 
-Source plan: `docs/screenshots/13-switch-management-addressing-plan.png`.
+![Switch management addressing plan](docs/screenshots/13-switch-management-addressing-plan.png)
+
 IPv6 is documented but not yet applied/verified in any screenshot.
+
+Applying VLAN 100 on Exec-Sales, then confirming it on Exec-Sales, HR-Acc,
+and IT:
+
+![Exec-Sales VLAN 100 management IP being set via CLI](docs/screenshots/12-exec-sales-vlan100-cli-config.png)
+
+| Switch | `show ip interface brief` confirmation |
+|--------|-------------------------------------------|
+| Exec-Sales | ![Exec-Sales show ip interface brief](docs/screenshots/14-exec-sales-show-ip-int-brief.png) |
+| HR-Acc | ![HR-Acc show ip interface brief](docs/screenshots/15-hr-acc-show-ip-int-brief.png) |
+| IT | ![IT show ip interface brief](docs/screenshots/16-it-show-ip-int-brief.png) |
 
 ## Trunking (access switches → core)
 
@@ -99,8 +152,19 @@ trunk command wasn't captured in a screenshot, so its port config in
 `configs/exec-sales.cfg` is inferred/symmetric and flagged for
 verification. Worth double-checking in Packet Tracer.
 
-Core-side trunk/access port map (`Multilayer Switch0`, confirmed via
-`docs/screenshots/20-21`):
+Access-side trunk configs (each switch's uplink to the core):
+
+| Switch | Trunk config (live CLI) |
+|--------|----------------------------|
+| HR-Acc | ![HR-Acc trunk config](docs/screenshots/17-hr-acc-trunk-config.png) |
+| Ops-Mktg | ![Ops-Mktg trunk config](docs/screenshots/18-ops-mktg-trunk-config.png) |
+| IT | ![IT trunk config](docs/screenshots/19-it-trunk-config.png) |
+
+Core-side trunk/access port map (`Multilayer Switch0`):
+
+![Core trunk config, part 1 — Gi1/0/2 and Gi1/0/3](docs/screenshots/20-core-trunk-config-part1.png)
+
+![Core trunk and access port config, part 2 — Gi1/0/5 through Gi1/0/9](docs/screenshots/21-core-trunk-and-access-config.png)
 
 | Core port          | Connects to        | Mode   | VLAN(s)                  |
 |----------------------|---------------------|--------|----------------------------|
@@ -116,20 +180,31 @@ Core-side trunk/access port map (`Multilayer Switch0`, confirmed via
 ## Inter-VLAN routing
 
 `Multilayer Switch0` routes between all department/service VLANs using
-SVIs (see [`configs/multilayer-switch0.cfg`](configs/multilayer-switch0.cfg),
-sourced from the live CLI session in `docs/screenshots/6-9`). Every VLAN
-in the table above has an SVI with a `.254` gateway address, `no shutdown`,
-and a `description` labeling its role.
+SVIs (see [`configs/multilayer-switch0.cfg`](configs/multilayer-switch0.cfg)).
+Every VLAN in the table above has an SVI with a `.254` gateway address,
+`no shutdown`, and a `description` labeling its role. Live CLI session,
+in order:
+
+![Core SVI config, part 1 — Vlan20–22](docs/screenshots/22-core-svi-config-part1.png)
+
+![Core SVI config, part 2 — Vlan22–27](docs/screenshots/23-core-svi-config-part2.png)
+
+![Core SVI config, part 3 — Vlan27–50](docs/screenshots/24-core-svi-config-part3.png)
+
+![Core SVI config, part 4 — Vlan40–100](docs/screenshots/25-core-svi-config-part4.png)
 
 ## WAN / VPN branch
 
 A branch segment (VLAN 110, `192.168.110.0/24`) sits off a dedicated
 `VPN-Router`, reached from the main site through `TB-Router` over a
-point-to-point serial link (`docs/screenshots/30`). Addressing is now
-**confirmed** via `show ip route` on both routers
-(`docs/screenshots/33-vpn-router-show-ip-route.png`,
-`docs/screenshots/34-tb-router-show-ip-route.png`), captured in full in
+point-to-point serial link. Addressing is now **confirmed** via
+`show ip route` on both routers, captured in full in
 [`configs/wan-vpn-link.cfg`](configs/wan-vpn-link.cfg):
+
+| Router | `show ip route` |
+|--------|--------------------|
+| VPN-Router | ![VPN-Router show ip route](docs/screenshots/33-vpn-router-show-ip-route.png) |
+| TB-Router | ![TB-Router show ip route](docs/screenshots/34-tb-router-show-ip-route.png) |
 
 | Link / interface                    | TB-Router          | VPN-Router          |
 |---------------------------------------|----------------------|------------------------|
@@ -168,33 +243,60 @@ see Notes below).
 
 **Inter-VLAN routing, from `PC1-Exec` (192.168.20.1):**
 
-| Destination        | Subnet       | 
-|---------------------|---------------|
-| 192.168.20.2        | Executive     
-| 192.168.21.1         | Sales         
-| 192.168.22.1         | HR          
-| 192.168.23.1         | Accounting 
-| 192.168.24.2         | Operations    
-| 192.168.25.2         | Marketing     
-| 192.168.27.1         | IT            
-| 192.168.30.1         | Servers (AD)  
-| 192.168.40.1         | Printing    
-| 192.168.60.1         | Wifi          
-| 192.168.110.254      | VPN branch gw 
-| 10.0.0.1             | WAN hop       
+| Destination        | Subnet       | Result |
+|---------------------|---------------|--------|
+| 192.168.20.2        | Executive     | ✅ 0% loss |
+| 192.168.21.1         | Sales         | ⚠️ 25% loss (first packet timed out, then succeeded — likely ARP delay) |
+| 192.168.22.1         | HR            | ⚠️ 25% loss (same pattern) |
+| 192.168.23.1         | Accounting    | ⚠️ 25% loss (same pattern) |
+| 192.168.24.2         | Operations    | ✅ 0% loss |
+| 192.168.25.2         | Marketing     | ✅ 0% loss |
+| 192.168.27.1         | IT            | ⚠️ 25% loss (same pattern) |
+| 192.168.30.1         | Servers (AD)  | ✅ 0% loss |
+| 192.168.40.1         | Printing      | ⚠️ 25% loss (same pattern) |
+| 192.168.60.1         | Wifi          | ✅ 0% loss (33ms avg, expected — wireless) |
+| 192.168.110.254      | VPN branch gw | ✅ 0% loss |
+| 10.0.0.1             | WAN hop       | ⚠️ 25% loss |
 
+The recurring "first packet times out, then succeeds" pattern across
+several first-time-contacted subnets is consistent with normal ARP
+resolution delay on the first packet rather than a routing problem — every
+one of those flows recovered to 100% delivery on the remaining packets.
+
+Raw ping sessions, `PC1-Exec` → every department + service subnet:
+
+![PC1-Exec ping tests, part 1](docs/screenshots/26-pc1-exec-intervlan-ping-tests-1.png)
+
+![PC1-Exec ping tests, part 2](docs/screenshots/27-pc1-exec-intervlan-ping-tests-2.png)
+
+![PC1-Exec ping tests, part 3](docs/screenshots/28-pc1-exec-intervlan-ping-tests-3.png)
+
+![PC1-Exec ping tests — Servers and WiFi](docs/screenshots/29-pc1-exec-servers-wifi-ping-tests.png)
+
+Earlier stage — `PC1-Exec`'s first-ever pings, before inter-VLAN routing
+existed (VLAN isolation confirmed: same-VLAN pings succeed, cross-subnet
+pings fail):
+
+![PC1-Exec's original ping tests, before routing was configured](docs/screenshots/05-pc1-exec-ping-tests.png)
 
 **Branch connectivity, from `PC1-VPN` (192.168.110.x):**
-- Ping to `192.168.10.1` —
-- Ping to `192.168.10.2` — 
-- `tracert 192.168.20.1` — 
+- Ping to `192.168.10.1` — ✅ 0% loss
+- Ping to `192.168.10.2` — ⚠️ 34% loss (2 of 3 delivered)
+- `tracert 192.168.20.1` — ✅ completes in 4 hops (see WAN section above)
+
+![PC1-Exec reaching the WAN and VPN branch gateway](docs/screenshots/31-pc1-exec-wan-vpn-ping-tests.png)
+
+![PC1-VPN ping and tracert back to the main site](docs/screenshots/32-pc1-vpn-ping-tracert.png)
 
 **Wireless (from earlier build stage):** Laptop0 pinged three Wi-Fi-segment
-hosts with 0% loss (`docs/screenshots/11`).
+hosts with 0% loss.
+
+![Laptop0 ping tests on the WiFi VLAN](docs/screenshots/11-laptop0-ping-tests.png)
 
 **Switch management plane:** `show ip interface brief` on Exec-Sales,
 HR-Acc, and IT confirms VLAN 100 is `up`/`up` with the addresses from the
-management plan (`docs/screenshots/14`, `15`, `16`).
+management plan (see the table earlier in this README, under
+"Switch management addressing").
 
 ## Repo layout
 
@@ -209,6 +311,7 @@ management plan (`docs/screenshots/14`, `15`, `16`).
 │   ├── it-switch.cfg
 │   └── wan-vpn-link.cfg         # inferred WAN/VPN addressing
 └── docs/
+    ├── DEPLOYMENT.md              # stage-by-stage build walkthrough (Mermaid diagrams)
     └── screenshots/              # Packet Tracer screenshots, in build order
         ├── 01–16   … original department network + wireless build
         ├── 17–32   … trunking, inter-VLAN SVIs, VPN branch, verification
@@ -232,3 +335,4 @@ management plan (`docs/screenshots/14`, `15`, `16`).
   Exec-Sales.
 - Consider adding the `.pkt` file itself if you want the repo to be fully
   reproducible in Packet Tracer.
+
